@@ -6,34 +6,81 @@ import random
 import sys
 from copy import deepcopy
 
+to_handle = py_object
+
 kOfxStatOK = 0
+kOfxStatFailed = 1
+kOfxStatErrFatal = 2
+kOfxStatErrUnknown = 3
+kOfxStatErrMissingHostFeature = 4
+kOfxStatErrUnsupported = 5
+kOfxStatErrExists = 6
+kOfxStatErrFormat = 7
+kOfxStatErrMemory = 8
 kOfxStatErrBadHandle = 9
+kOfxStatErrBadIndex = 10
+kOfxStatErrValue = 11
+kOfxStatReplyYes = 12
+kOfxStatReplyNo = 13
+kOfxStatReplyDefault = 14
+
+kOfxMeshAttribPoint = b"OfxMeshAttribPoint"
+kOfxMeshAttribCorner = b"OfxMeshAttribCorner"
+kOfxMeshAttribFace = b"OfxMeshAttribFace"
+kOfxMeshAttribMesh = b"OfxMeshAttribMesh"
+
+kOfxMeshAttribPointPosition = b"OfxMeshAttribPointPosition"
+kOfxMeshAttribCornerPoint = b"OfxMeshAttribCornerPoint"
+kOfxMeshAttribFaceSize = b"OfxMeshAttribFaceSize"
+
+kOfxMeshAttribTypeUByte = b"OfxMeshAttribTypeUByte"
+kOfxMeshAttribTypeInt = b"OfxMeshAttribTypeInt"
+kOfxMeshAttribTypeFloat = b"OfxMeshAttribTypeFloat"
 
 OfxStatus = c_int
+OfxTime = c_double
 OfxPropertySet = dict
-OfxPropertySetHandle = py_object
+OfxPropertySetHandle = POINTER(py_object)
 
 OfxParamSet = dict
-OfxParamSetHandle = py_object
+OfxParamSetHandle = POINTER(py_object)
 
 OfxInputSet = dict
-OfxInputSetHandle = py_object
+OfxInputSetHandle = POINTER(py_object)
+
+class OfxAttribute:
+    def __init__(self, name, attachment, component_count, attribute_type):
+        self.name = name
+        self.attachment = attachment
+        self.component_count = component_count
+        self.attribute_type = attribute_type
+        self.properties = OfxPropertySet()
+
+class OfxMesh:
+    def __init__(self):
+        self.properties = OfxPropertySet()
+        self.attributes = {
+            kOfxMeshAttribPoint: {
+                kOfxMeshAttribPointPosition: OfxAttribute(kOfxMeshAttribPointPosition, kOfxMeshAttribPoint, 3, kOfxMeshAttribTypeFloat)
+            }
+        }
+
+OfxMeshHandle = POINTER(py_object)
 
 class OfxMeshInput:
     def __init__(self, name):
         self.name = name
         self.properties = OfxPropertySet()
+        self.mesh = OfxMesh()
 
-OfxMeshInputHandle = py_object
+OfxMeshInputHandle = POINTER(py_object)
 
 class OfxMeshEffect:
     def __init__(self):
         self.params = OfxParamSet()
-        self.params['foo'] = "bar"
-
         self.inputs = OfxInputSet()
 
-OfxMeshEffectHandle = py_object
+OfxMeshEffectHandle = POINTER(py_object)
 
 class OfxHost(Structure):
     _fields_ = [
@@ -46,7 +93,7 @@ class OfxHost(Structure):
 
         self.host_props = OfxPropertySet()
         self.host_props['host_instance'] = self
-        self.host = py_object(self.host_props)
+        self.host = pointer(to_handle(self.host_props))
 
         self.suites = {
             b'OfxPropertySuite': { 1: OfxPropertySuiteV1() },
@@ -57,7 +104,8 @@ class OfxHost(Structure):
 
     @staticmethod
     @CFUNCTYPE(c_void_p, OfxPropertySetHandle, c_char_p, c_int)
-    def _fetchSuite(host_props, suite_name, suite_version):
+    def _fetchSuite(host_props_p, suite_name, suite_version):
+        host_props = host_props_p.contents.value
         self = host_props['host_instance']
         print(f"Fetching suite {suite_name}, version {suite_version}")
         if suite_name in self.suites:
@@ -100,24 +148,24 @@ class OfxSuite:
 
 class OfxPropertySuiteV1(Structure, OfxSuite):
     _fields_ = [
-        ("propSetPointer",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, c_void_p)),
-        ("propSetString",    CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, c_char_p)),
-        ("propSetDouble",    CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, c_double)),
-        ("propSetInt",       CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, c_int)),
-        ("propSetPointerN",  CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_void_p))),
-        ("propSetStringN",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_char_p))),
-        ("propSetDoubleN",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_double))),
-        ("propSetIntN",      CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_int))),
-        ("propGetPointer",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_void_p))),
-        ("propGetString",    CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_char_p))),
-        ("propGetDouble",    CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_double))),
-        ("propGetInt",       CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_int))),
-        ("propGetPointerN",  CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_void_p))),
-        ("propGetStringN",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_char_p))),
-        ("propGetDoubleN",   CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_double))),
-        ("propGetIntN",      CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, c_int, POINTER(c_int))),
-        ("propReset",        CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p)),
-        ("propGetDimension", CFUNCTYPE(OfxStatus, POINTER(OfxPropertySetHandle), c_char_p, POINTER(c_int))),
+        ("propSetPointer",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, c_void_p)),
+        ("propSetString",    CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, c_char_p)),
+        ("propSetDouble",    CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, c_double)),
+        ("propSetInt",       CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, c_int)),
+        ("propSetPointerN",  CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_void_p))),
+        ("propSetStringN",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_char_p))),
+        ("propSetDoubleN",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_double))),
+        ("propSetIntN",      CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_int))),
+        ("propGetPointer",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_void_p))),
+        ("propGetString",    CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_char_p))),
+        ("propGetDouble",    CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_double))),
+        ("propGetInt",       CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_int))),
+        ("propGetPointerN",  CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_void_p))),
+        ("propGetStringN",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_char_p))),
+        ("propGetDoubleN",   CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_double))),
+        ("propGetIntN",      CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, c_int, POINTER(c_int))),
+        ("propReset",        CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p)),
+        ("propGetDimension", CFUNCTYPE(OfxStatus, OfxPropertySetHandle, c_char_p, POINTER(c_int))),
     ]
 
     def __init__(self):
@@ -135,9 +183,13 @@ class OfxPropertySuiteV1(Structure, OfxSuite):
     _propSetString = _propSetDouble
     _propSetInt = _propSetDouble
 
+    @staticmethod
+    def _propGetInt(property_set_p, name, component, value_p):
+        exit(1)
+
 class OfxParameterSuiteV1(Structure, OfxSuite):
     _fields_ = [
-        ("paramDefine",            CFUNCTYPE(OfxStatus, POINTER(OfxParamSetHandle), c_char_p, c_char_p, POINTER(POINTER(OfxPropertySetHandle)))),
+        ("paramDefine",            CFUNCTYPE(OfxStatus, OfxParamSetHandle, c_char_p, c_char_p, POINTER(OfxPropertySetHandle))),
         ("paramGetHandle",         CFUNCTYPE(OfxStatus, c_int)),
         ("paramSetGetPropertySet", CFUNCTYPE(OfxStatus, c_int)),
         ("paramGetPropertySet",    CFUNCTYPE(OfxStatus, c_int)),
@@ -161,7 +213,7 @@ class OfxParameterSuiteV1(Structure, OfxSuite):
         self.initFunctionPointers()
 
     @staticmethod
-    def _paramDefine(param_set_p, param_type, name, property_set_p):
+    def _paramDefine(param_set_p, param_type, name, property_set_pp):
         print(f"Defining parameter '{name.decode()}'")
         if not param_set_p:
             print("Invalid parameter set!")
@@ -172,22 +224,22 @@ class OfxParameterSuiteV1(Structure, OfxSuite):
             "type": param_type,
             "properties": OfxPropertySet(),
         }
-        if property_set_p.contents:
-            property_set_p.contents.contents = OfxPropertySetHandle(param_set[name]["properties"])
+        if property_set_pp:
+            property_set_pp.contents.contents = to_handle(param_set[name]["properties"])
         return kOfxStatOK
 
 class OfxMeshEffectSuiteV1(Structure, OfxSuite):
     _fields_ = [
         ("getPropertySet",        CFUNCTYPE(OfxStatus, c_int)),
-        ("getParamSet",           CFUNCTYPE(OfxStatus, POINTER(OfxMeshEffectHandle), POINTER(POINTER(OfxParamSetHandle)))),
-        ("inputDefine",           CFUNCTYPE(OfxStatus, POINTER(OfxMeshEffectHandle), c_char_p, POINTER(POINTER(OfxMeshInputHandle)), POINTER(POINTER(OfxPropertySetHandle)))),
-        ("inputGetHandle",        CFUNCTYPE(OfxStatus, c_int)),
+        ("getParamSet",           CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, POINTER(OfxParamSetHandle))),
+        ("inputDefine",           CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
+        ("inputGetHandle",        CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
         ("inputGetPropertySet",   CFUNCTYPE(OfxStatus, c_int)),
         ("inputRequestAttribute", CFUNCTYPE(OfxStatus, c_int)),
-        ("inputGetMesh",          CFUNCTYPE(OfxStatus, c_int)),
+        ("inputGetMesh",          CFUNCTYPE(OfxStatus, OfxMeshInputHandle, OfxTime, POINTER(OfxMeshHandle), POINTER(OfxPropertySetHandle))),
         ("inputReleaseMesh",      CFUNCTYPE(OfxStatus, c_int)),
         ("attributeDefine",       CFUNCTYPE(OfxStatus, c_int)),
-        ("meshGetAttribute",      CFUNCTYPE(OfxStatus, c_int)),
+        ("meshGetAttribute",      CFUNCTYPE(OfxStatus, OfxMeshHandle, c_char_p, c_char_p, POINTER(OfxPropertySetHandle))),
         ("meshGetPropertySet",    CFUNCTYPE(OfxStatus, c_int)),
         ("meshAlloc",             CFUNCTYPE(OfxStatus, c_int)),
         ("abort",                 CFUNCTYPE(OfxStatus, c_int)),
@@ -197,27 +249,77 @@ class OfxMeshEffectSuiteV1(Structure, OfxSuite):
         self.initFunctionPointers()
 
     @staticmethod
-    def _getParamSet(mesh_effect_p, param_set_h):
+    def _getParamSet(mesh_effect_p, param_set_pp):
         mesh_effect = mesh_effect_p.contents.value
         print(f"Getting parameter set from mesh {mesh_effect}")
-        print(mesh_effect.params)
-        cast(param_set_h, c_void_p)  # for some reason this line is required
-        param_set_h.contents.contents = OfxParamSetHandle(mesh_effect.params)
+        cast(param_set_pp, c_void_p)  # for some reason this line is required
+        param_set_pp.contents.contents = to_handle(mesh_effect.params)
         return kOfxStatOK
 
     @staticmethod
-    def _inputDefine(mesh_effect_p, name, input_p, input_props_p):
+    def _inputDefine(mesh_effect_p, name, input_pp, input_props_pp):
         print(f"Defining input '{name.decode()}'")
         mesh_effect = mesh_effect_p.contents.value
 
         mesh_input = OfxMeshInput(name)
         mesh_effect.inputs[name] = mesh_input
 
-        input_p.contents.contents = OfxMeshInputHandle(mesh_input)
+        cast(input_pp, c_void_p)  # for some reason this line is required
+        input_pp.contents.contents = to_handle(mesh_input)
 
-        if input_props_p.contents:
-            input_props_p.contents.contents = OfxPropertySetHandle(mesh_input.properties)
+        if input_props_pp:
+            cast(input_props_pp, c_void_p)  # for some reason this line is required
+            input_props_pp.contents.contents = to_handle(mesh_input.properties)
 
+        return kOfxStatOK
+
+    @staticmethod
+    def _inputGetHandle(mesh_effect_p, name, input_pp, input_props_pp):
+        print(f"Getting input '{name.decode()}'")
+        mesh_effect = mesh_effect_p.contents.value
+
+        if name not in mesh_effect.inputs:
+            print(f"Input does not exist: '{name.decode()}'")
+            return kOfxStatErrBadIndex
+
+        mesh_input = mesh_effect.inputs[name]
+
+        cast(input_pp, c_void_p)  # for some reason this line is required
+        input_pp.contents.contents = to_handle(mesh_input)
+
+        if input_props_pp:
+            cast(input_props_pp, c_void_p)  # for some reason this line is required
+            input_props_pp.contents.contents = to_handle(mesh_input.properties)
+
+        return kOfxStatOK
+
+    @staticmethod
+    def _inputGetMesh(mesh_input_p, time, mesh_pp, mesh_props_pp):
+        print(f"Getting input mesh at time {time}")
+        mesh_input = mesh_input_p.contents.value
+
+        mesh = mesh_input.mesh
+
+        cast(mesh_pp, c_void_p)  # for some reason this line is required
+        mesh_pp.contents.contents = to_handle(mesh)
+
+        if mesh_props_pp:
+            cast(mesh_props_pp, c_void_p)  # for some reason this line is required
+            mesh_props_pp.contents.contents = to_handle(mesh.properties)
+
+        return kOfxStatOK
+
+    @staticmethod
+    def _meshGetAttribute(mesh_p, attachment, name, attribute_pp):
+        print(f"Getting {attachment.decode()} attribute '{name.decode()}'")
+        mesh = mesh_p.contents.value
+        attribute = mesh.attributes.get(attachment, {}).get(name)
+        if attribute is None:
+            print(f"Attribute does not exist: {attachment.decode()}/{name.decode()}")
+            return kOfxStatErrBadIndex
+
+        cast(attribute_pp, c_void_p)  # for some reason this line is required
+        attribute_pp.contents.contents = to_handle(attribute)
         return kOfxStatOK
 
 class OfxMessageSuiteV2(Structure, OfxSuite):
@@ -256,12 +358,12 @@ def main(dll_filename):
     status = plugin.mainEntry(kOfxActionLoad, None, None, None)
 
     descriptor = OfxMeshEffect()
-    descriptor_handle = OfxMeshEffectHandle(descriptor)
+    descriptor_handle = to_handle(descriptor)
     status = plugin.mainEntry(kOfxActionDescribe, byref(descriptor_handle), None, None)
     print(f"kOfxActionDescribe status = {status}")
 
     instance = deepcopy(descriptor)
-    instance_handle = OfxMeshEffectHandle(instance)
+    instance_handle = to_handle(instance)
     status = plugin.mainEntry(kOfxActionCreateInstance, byref(instance_handle), None, None)
     print(f"kOfxActionCreateInstance status = {status}")
 
