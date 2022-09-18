@@ -1,55 +1,17 @@
-Python 3D Viewer
-================
+Python OpenMfx Viewer
+=====================
 
-A simple starter Python code for experimenting 3D graphics using [glfw](https://github.com/FlorianRhiem/pyGLFW), [moderngl](https://moderngl.readthedocs.io) and [imgui](https://pyimgui.readthedocs.io).
+A very simple GUI based on [Python3dViewer](https://github.com/eliemichel/Python3dViewer) to vizualize OpenMfx effects and illustrating the use of the `openmfx` Python module.
 
 ![Screenshot](doc/screenshot.png)
-
-The squeleton of an application using this template looks like:
-
-```python
-class MyApp(App):
-    def init(self):
-    	"""Load shaders, meshes, etc."""
-        # ...
-
-    def update(self, time, delta_time):
-    	"""Update scene"""
-        # ...
-
-    def render(self):
-    	"""Use modergl to draw 3d here"""
-        # ...
-
-    def ui(self):
-        """Use the imgui module here to draw the UI"""
-        # ...
-
-    def on_key(self, key, scancode, action, mods):
-    	"""React to user input"""
-        # ...
-
-    def on_mouse_move(self, x, y):
-        # ...
-
-    def on_mouse_button(self, button, action, mods):
-        # ...
-
-    def on_scroll(self, x, y):
-        # ...
-
-    def on_resize(self, width, height):
-        # ...
-
-app = MyApp(1280, 720, "My 3D application")
-app.main_loop()
-```
 
 License
 -------
 
+*The MIT License*
+
 ```
-Copyright (c) 2020 -- Élie Michel <elie.michel@exppad.com>
+Copyright (c) 2020-2022 -- Élie Michel <elie.michel@exppad.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to

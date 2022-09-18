@@ -185,7 +185,7 @@ class MyApp(App):
         imgui.text(f"Found {n} plugins:")
         all_idents = []
         for i in range(n):
-            plugin = self.lib.OfxGetPlugin(i).contents
+            plugin = self.lib.OfxGetPlugin(i)
             ident = plugin.pluginIdentifier.decode()
             #imgui.bullet_text(f"{ident}")
             all_idents.append(ident)
@@ -249,7 +249,7 @@ class MyApp(App):
         for param in py_instance.params.values():
             label = param.name.decode()
             if param.type == kOfx.ParamTypeInteger:
-                changed, param.value = imgui.drag_int(label, param.value)
+                changed, param.value[0] = imgui.drag_int(label, param.value[0])
             elif param.type == kOfx.ParamTypeDouble:
                 #imgui.slider_float(param.name, param.value, min_value, max_value)
                 changed, param.value = imgui.drag_float(label, param.value)
@@ -347,7 +347,7 @@ class MyApp(App):
             return
         self.unload_plugin()
         self.current_plugin_index = plugin_index
-        self.plugin = self.lib.OfxGetPlugin(plugin_index).contents
+        self.plugin = self.lib.OfxGetPlugin(plugin_index)
         self.plugin.setHost(self.host)
 
     def cook(self):

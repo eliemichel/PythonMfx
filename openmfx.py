@@ -31,6 +31,8 @@ StatReplyYes = 12,
 StatReplyNo = 13,
 StatReplyDefault = 14,
 
+MeshEffectPluginAPI = b"OfxMeshEffectPluginAPI",
+
 MeshAttribPoint = b"OfxMeshAttribPoint",
 MeshAttribCorner = b"OfxMeshAttribCorner",
 MeshAttribFace = b"OfxMeshAttribFace",
@@ -102,6 +104,12 @@ OfxInputSet = dict
 OfxInputSetHandle = POINTER(py_object)
 
 class PyObjectWrapper(Structure):
+    """
+    User-exposed types generally are simple handles, pointers to actual
+    internal structures.
+    These handle derive from PyObjectWrapper and set _internal_type_ to the
+    underlying data structure.
+    """
     _fields_ = [
         ("internal", py_object),
     ]
@@ -118,6 +126,9 @@ class OfxParamInternal:
         self.type = type
         self.value = None
         self.properties = OfxPropertySet()
+
+    def __repr__(self):
+        return f"<OfxParam '{self.name.decode()}'>"
 
 class OfxParam(PyObjectWrapper):
     _internal_type_ = OfxParamInternal
@@ -227,6 +238,9 @@ class OfxMeshInternal:
         self.corner_count = 0
         self.face_count = 0
 
+    def __repr__(self):
+        return f"<OfxMesh data at {'{:#018x}'.format(id(self))}>"
+
     def allocate(self):
         type_to_count = {
             kOfx.MeshAttribPoint: kOfx.MeshPropPointCount,
@@ -273,6 +287,14 @@ class OfxMeshInputInternal:
         self.name = name
         self.properties = OfxPropertySet()
         self.mesh = OfxMeshInternal()
+        self.requested_attributes = {
+            kOfx.MeshAttribPoint: {},
+            kOfx.MeshAttribCorner: {},
+            kOfx.MeshAttribFace: {}
+        }
+
+    def __repr__(self):
+        return f"<OfxMeshInput '{self.name.decode()}'>"
 
 class OfxMeshInput(PyObjectWrapper):
     _internal_type_ = OfxMeshInputInternal
@@ -284,12 +306,18 @@ class OfxMeshEffectInternal:
         self.params = OfxParamSet()
         self.inputs = OfxInputSet()
 
+    def __repr__(self):
+        return f"<OfxMeshEffect data at {'{:#018x}'.format(id(self))}>"
+
 class OfxMeshEffect(PyObjectWrapper):
     _internal_type_ = OfxMeshEffectInternal
 
 OfxMeshEffectHandle = POINTER(OfxMeshEffect)
 
 class OfxHost(Structure):
+    """
+    Represents the host software, and contain all function suites
+    """
     _fields_ = [
         ("host", OfxPropertySetHandle),
         ("fetchSuite", CFUNCTYPE(c_void_p, OfxPropertySetHandle, c_char_p, c_int)),
@@ -314,7 +342,7 @@ class OfxHost(Structure):
     def _fetchSuite(host_props_p, suite_name, suite_version):
         host_props = host_props_p.contents.value
         self = host_props['host_instance']
-        print(f"Fetching suite {suite_name}, version {suite_version}")
+        print(f"Fetching suite {suite_name.decode()}, version {suite_version}")
         if suite_name in self.suites:
             if suite_version in self.suites[suite_name]:
                 suite = self.suites[suite_name][suite_version]
@@ -327,6 +355,9 @@ class OfxHost(Structure):
 
 
 class OfxPlugin(Structure):
+    """
+    A plugin as returned by the OfxGetPlugin API call
+    """
     _fields_ = [
         ("pluginApi", c_char_p),
         ("apiVersion", c_int),
@@ -337,7 +368,15 @@ class OfxPlugin(Structure):
         ("mainEntry", CFUNCTYPE(OfxStatus, c_char_p, c_void_p, OfxPropertySetHandle, OfxPropertySetHandle)),
     ]
 
+    def __repr__(self):
+        return f"<OfxPlugin '{self.pluginIdentifier.decode()}' v{self.pluginVersionMajor}.{self.pluginVersionMinor}>"
+
 class OfxSuite:
+    """
+    Parent class for function suites, which defines a defautl implementation
+    for all functions 'foo' declared in _fields_ but for which no method
+    _foo exists.
+    """
     def initFunctionPointers(self):
         for attr, ctype in self._fields_:
             if hasattr(self, "_" + attr):
@@ -501,19 +540,20 @@ class OfxParameterSuiteV1(Structure, OfxSuite):
 
 class OfxMeshEffectSuiteV1(Structure, OfxSuite):
     _fields_ = [
-        ("getPropertySet",        CFUNCTYPE(OfxStatus, c_int)),
-        ("getParamSet",           CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, POINTER(OfxParamSetHandle))),
-        ("inputDefine",           CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
-        ("inputGetHandle",        CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
-        ("inputGetPropertySet",   CFUNCTYPE(OfxStatus, c_int)),
-        ("inputRequestAttribute", CFUNCTYPE(OfxStatus, c_int)),
-        ("inputGetMesh",          CFUNCTYPE(OfxStatus, OfxMeshInputHandle, OfxTime, POINTER(OfxMeshHandle), POINTER(OfxPropertySetHandle))),
-        ("inputReleaseMesh",      CFUNCTYPE(OfxStatus, OfxMeshHandle)),
-        ("attributeDefine",       CFUNCTYPE(OfxStatus, c_int)),
-        ("meshGetAttribute",      CFUNCTYPE(OfxStatus, OfxMeshHandle, c_char_p, c_char_p, POINTER(OfxPropertySetHandle))),
-        ("meshGetPropertySet",    CFUNCTYPE(OfxStatus, c_int)),
-        ("meshAlloc",             CFUNCTYPE(OfxStatus, OfxMeshHandle)),
-        ("abort",                 CFUNCTYPE(OfxStatus, c_int)),
+        ("getPropertySet",          CFUNCTYPE(OfxStatus, c_int)),
+        ("getParamSet",             CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, POINTER(OfxParamSetHandle))),
+        ("inputDefine",             CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
+        ("inputGetHandle",          CFUNCTYPE(OfxStatus, OfxMeshEffectHandle, c_char_p, POINTER(OfxMeshInputHandle), POINTER(OfxPropertySetHandle))),
+        ("inputGetPropertySet",     CFUNCTYPE(OfxStatus, c_int)),
+        ("inputRequestAttribute",   CFUNCTYPE(OfxStatus, OfxMeshInputHandle, c_char_p, c_char_p, c_int, c_char_p, c_char_p, c_int)),
+        ("inputGetMesh",            CFUNCTYPE(OfxStatus, OfxMeshInputHandle, OfxTime, POINTER(OfxMeshHandle), POINTER(OfxPropertySetHandle))),
+        ("inputReleaseMesh",        CFUNCTYPE(OfxStatus, OfxMeshHandle)),
+        ("attributeDefine",         CFUNCTYPE(OfxStatus, c_int)),
+        ("meshGetAttributeByIndex", CFUNCTYPE(OfxStatus, c_int)),
+        ("meshGetAttribute",        CFUNCTYPE(OfxStatus, OfxMeshHandle, c_char_p, c_char_p, POINTER(OfxPropertySetHandle))),
+        ("meshGetPropertySet",      CFUNCTYPE(OfxStatus, OfxMeshHandle, POINTER(OfxPropertySetHandle))),
+        ("meshAlloc",               CFUNCTYPE(OfxStatus, OfxMeshHandle)),
+        ("abort",                   CFUNCTYPE(OfxStatus, c_int)),
     ]
 
     def __init__(self):
@@ -565,6 +605,19 @@ class OfxMeshEffectSuiteV1(Structure, OfxSuite):
         return kOfx.StatOK
 
     @staticmethod
+    def _inputRequestAttribute(mesh_input_p, attachment, name, component_count, type, semantic, mandatory):
+        mesh_input = mesh_input_p.contents.internal
+        attributes = mesh_input.requested_attributes[attachment]
+
+        if name in attributes:
+            return kOfx.StatErrExists
+
+        print(f"Requesting attribute '{name.decode()}': {component_count} x {type.decode()[17:]}, {semantic.decode()[21:]} ({'mandatory' if mandatory else 'optional'})")
+        attributes[name] = (component_count, type, semantic, mandatory)
+
+        return kOfx.StatOK
+
+    @staticmethod
     def _inputGetMesh(mesh_input_p, time, mesh_pp, mesh_props_pp):
         print(f"Getting input mesh at time {time}")
         mesh_input = mesh_input_p.contents.internal
@@ -600,6 +653,18 @@ class OfxMeshEffectSuiteV1(Structure, OfxSuite):
         return kOfx.StatOK
 
     @staticmethod
+    def _meshGetPropertySet(mesh_p, mesh_props_pp):
+        mesh = mesh_p.contents.internal
+
+        if not mesh_props_pp:
+            return kOfx.kOfxStatErrBadHandle
+
+        cast(mesh_props_pp, c_void_p)  # for some reason this line is required
+        mesh_props_pp.contents.contents = to_handle(mesh.properties)
+        #mesh_props_pp.contents = OfxPropertySetHandle(to_handle(mesh.properties))
+        return kOfx.StatOK
+
+    @staticmethod
     def _meshAlloc(mesh_p):
         mesh = mesh_p.contents.internal
         print(f"Allocating mesh data for {mesh.point_count} points, {mesh.corner_count} corners and {mesh.face_count} faces")
@@ -618,17 +683,20 @@ class OfxMessageSuiteV2(Structure, OfxSuite):
 
 class OfxPluginLibrary:
     def __init__(self, dll_filename):
-        self.hll = CDLL(dll_filename)
+        self._hll = CDLL(dll_filename)
         hllApiProto = CFUNCTYPE(c_int)
         hllApiParams = ()
-        self.OfxGetNumberOfPlugins = hllApiProto(("OfxGetNumberOfPlugins", self.hll), hllApiParams)
+        self.OfxGetNumberOfPlugins = hllApiProto(("OfxGetNumberOfPlugins", self._hll), hllApiParams)
 
         hllApiProto = CFUNCTYPE(POINTER(OfxPlugin), c_int)
         hllApiParams = ((1, "nth", 0),)
-        self.OfxGetPlugin = hllApiProto(("OfxGetPlugin", self.hll), hllApiParams)
+        self.OfxGetPlugin = hllApiProto(("OfxGetPlugin", self._hll), hllApiParams)
+        def errcheck(result, func, args):
+            return result.contents  # dereferences pointer
+        self.OfxGetPlugin.errcheck = errcheck
 
     def close(self):
-        handle = self.hll._handle
+        handle = self._hll._handle
         if sys.platform == "win32":
             kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
             kernel32.FreeLibrary.argtypes = [ctypes.wintypes.HMODULE]
