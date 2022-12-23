@@ -66,7 +66,7 @@ def main(ofx_filename, plugin_index):
     # but this module only provides a low level API matching the C API as close
     # as possible.
 
-    # Before actually running a mesh effect, we get its descriptor, namelay an
+    # Before actually running a mesh effect, we get its descriptor, namely an
     # object detailing the expected inputs and parameters of the effect.
     # Both descriptors and effect instances are stored in the same structure
     # named OfxMeshEffect.
@@ -136,7 +136,7 @@ def main(ofx_filename, plugin_index):
     translation = (0.1, 0.2, 0.3)
     py_instance.params[b"translation"].value = translation
 
-    # We can now run the core cook action, which comptes the effect's output
+    # We can now run the core cook action, which computes the effect's output
     status = plugin.mainEntry(kOfx.MeshEffectActionCook, byref(instance), None, None)
     print(f"OfxActionCook status = {status}")
     assert(status == kOfx.StatOK)
