@@ -373,7 +373,7 @@ class OfxPlugin(Structure):
 
 class OfxSuite:
     """
-    Parent class for function suites, which defines a defautl implementation
+    Parent class for function suites, which defines a default implementation
     for all functions 'foo' declared in _fields_ but for which no method
     _foo exists.
     """
